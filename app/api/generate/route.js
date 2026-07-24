@@ -23,13 +23,18 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Descrição vazia.' }, { status: 400 });
     }
 
-    // PASSO 1: O TAXONOMISTA (Mapeia a anatomia exata e o DNA do carro)
+    // PASSO 1: O GEOMETRISTA (Fim da mutação para esportivos)
     const taxonomistResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `You are an expert South American and global automotive historian and engineer. Analyze the user request. Identify the exact car model, year, generational body shape, platform twins, exact door layout, and grille structure so an image AI won't confuse it with modern cars.`
+          content: `You are an expert automotive geometric designer. The user will give you a car description. Your job is to create a 'Visual Geometry Blueprint' so an image AI perfectly recreates it without hallucinating modern or incorrect shapes.
+          1. Identify the exact make, model, and year.
+          2. Describe its EXACT body style and geometry (e.g., small 2-door economy hatchback, compact simple lines).
+          3. Detail the headlights shape, grille design, and stance.
+          4. CRITICAL: If it's a South American/regional commuter car (like Chevrolet Celta, Fiat Palio, VW Gol), explicitly command the AI to keep the design basic, rounded, and economical. Strictly FORBID it from looking like a modern sports car, Veloster, or having aggressive aero kits unless the user asked for it.
+          Output ONLY the visual blueprint paragraph.`
         },
         { role: 'user', content: text }
       ],
@@ -38,7 +43,7 @@ export async function POST(req) {
 
     const carAnatomyBlueprint = taxonomistResponse.choices[0].message.content;
 
-    // PASSO 2: O ENGENHEIRO DE PROMPT (Solução Nível Infinito + Câmera Dinâmica)
+    // PASSO 2: O ENGENHEIRO DE PROMPT (Isolamento de Teto e Detalhes)
     const promptBuilder = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -47,15 +52,13 @@ export async function POST(req) {
           content: `You are a Master Automotive Prompt Engineer. Using the car blueprint and user request, generate a strict, highly detailed English prompt for the FLUX Dev image generator.
 
           CRITICAL RULES (THE INFINITE ISOLATION PROTOCOL):
-          1. Follow the anatomical blueprint strictly for the car's general shape and identity.
-          2. UNIVERSAL COMPONENT ISOLATION: Treat the car as an assembly of separate 3D parts (BOTH EXTERIOR AND INTERIOR). Dynamically identify EVERY specific part the user wants colored (roof, mirrors, wheels, seats, dashboard, stitching, etc.).
-          3. ANTI-BLEEDING: Use strong isolating language (e.g., "exclusive to", "distinctly contrasting") to prevent primary colors from bleeding into custom accessories or interior materials, and vice-versa.
-          4. DYNAMIC CAMERA ANGLE (CRITICAL): 
-             - If the user's request focuses primarily on the inside of the car (e.g., seats, dashboard, steering wheel), frame the prompt as a "highly detailed interior cabin view from the driver or passenger perspective".
-             - If the request focuses on the outside, frame it as a "clean front three-quarter exterior view".
-          5. Frame the prompt so the image generator understands distinct materials (e.g., "glossy paint", "matte plastic", "perforated leather").
-          6. MANDATORY START: "Photorealistic 8k resolution, highly detailed, sharp focus, professional automotive photography, studio lighting."
-          7. Output ONLY the final detailed paragraph prompt. No bullet points.`
+          1. Follow the anatomical blueprint strictly to maintain the exact commuter or specific shape. Do not make standard cars look like supercars.
+          2. UNIVERSAL COMPONENT ISOLATION: Treat the car as an assembly of separate 3D parts.
+          3. ROOF vs PILLARS ISOLATION (CRITICAL): If a specific roof color is requested, you MUST explicitly state that the A-pillars, B-pillars, and C-pillars remain the PRIMARY BODY COLOR. Only the top roof panel changes color.
+          4. MICRO-DETAILS (ANTI-BLUR): For small contrasting items (like gold door handles, colored brake calipers, specific wheel spokes), describe them distinctly and sharply. Use language that prevents their color from bleeding into the surrounding dark body.
+          5. Frame the prompt for clear material distinction (glossy paint, matte plastic, chrome).
+          6. MANDATORY START: "Masterpiece, award-winning professional automotive photography, 8k resolution, hyper-realistic, Unreal Engine 5 render, ray tracing, specular reflections, 35mm lens, cinematic studio lighting, deep depth of field, vivid and extremely accurate colors."
+          7. Output ONLY the final detailed paragraph prompt.`
         },
         { role: 'user', content: `Blueprint: ${carAnatomyBlueprint} | Original User Request: ${text}` }
       ],
@@ -65,16 +68,17 @@ export async function POST(req) {
     const engineeredPrompt = promptBuilder.choices[0].message.content.trim();
     console.log('[Prompt Final HD]:', engineeredPrompt);
 
-    // PASSO 3: MOTOR FLUX DEV (Alta fidelidade)
+    // PASSO 3: MOTOR FLUX DEV (Semente livre e processamento no máximo)
     fal.config({ credentials: process.env.FAL_KEY });
     const result = await fal.subscribe('fal-ai/flux/dev', {
       input: {
         prompt: engineeredPrompt,
         image_size: 'landscape_16_9',
-        num_inference_steps: 30, // Aumentado para garantir a nitidez
+        num_inference_steps: 40, // Aumentado para 40: Força nitidez máxima em maçanetas e rodas complexas
         guidance_scale: 3.5,
         num_images: 1,
         enable_safety_checker: true,
+        // SEED REMOVIDO: A IA agora tem liberdade para não embaçar a imagem ao desenhar peças novas.
       },
       logs: false
     });
