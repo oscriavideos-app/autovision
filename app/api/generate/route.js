@@ -95,4 +95,4 @@ export async function POST(req) {
     console.error('[generate]', err);
     return NextResponse.json({ error: err?.message || 'Erro interno.' }, { status: 500 });
   }
-}
+          }
