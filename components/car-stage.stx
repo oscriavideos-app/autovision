@@ -1,0 +1,77 @@
+"use client"
+
+import { useState } from "react"
+import { Rotate3d, Play, Pause } from "lucide-react"
+import Image from "next/image"
+
+export function CarStage({ status, images }: { status: string, images: any[] }) {
+  const [spinning, setSpinning] = useState(false)
+
+  // 1. ESTADO PRONTO (Apresentação 360° Interativa do Modelo Gerado)
+  if (status === 'done' && images && images.length > 0) {
+    return (
+      <div className="relative aspect-[16/10] w-full overflow-hidden rounded-3xl bg-zinc-900/60 ring-1 ring-white/10 shadow-[0_0_50px_rgba(56,189,248,0.25)] md:aspect-[21/9]">
+        {/* CSS injetado para esconder a barra de rolagem mas manter o scroll magnético */}
+        <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+        
+        <div 
+          className="hide-scrollbar flex h-full w-full snap-x snap-mandatory overflow-x-auto"
+          style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+        >
+          {images.map((img, i) => (
+            <div key={i} className="relative min-w-full h-full snap-center flex items-center justify-center">
+              <img 
+                src={img.url || img} 
+                alt={`Ângulo ${i + 1}`} 
+                className="w-full h-full object-contain md:object-cover p-2" 
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Badge Flutuante Avisando que é 360 */}
+        <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-zinc-950/80 px-4 py-2 text-sm font-bold text-emerald-400 ring-1 ring-emerald-400/50 backdrop-blur shadow-[0_0_15px_rgba(52,211,153,0.3)] md:right-6 md:top-6 animate-bounce">
+          <Rotate3d className="h-5 w-5" aria-hidden="true" />
+          Arraste para Visão 360°
+        </div>
+      </div>
+    )
+  }
+
+  // 2. ESTADO PADRÃO (Wireframe Premium v0 da Lamborghini)
+  return (
+    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-3xl bg-zinc-900/60 ring-1 ring-white/10 shadow-2xl shadow-black/60 md:aspect-[21/9]">
+      <div className="pointer-events-none absolute inset-0 opacity-40"
+        style={{ backgroundImage: "linear-gradient(to right, rgba(56,189,248,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(56,189,248,0.08) 1px, transparent 1px)", backgroundSize: "44px 44px" }}
+      />
+      <div className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(ellipse 60% 55% at 50% 55%, rgba(56,189,248,0.18), transparent 70%)" }}
+      />
+
+      <div className="absolute inset-0 flex items-center justify-center [perspective:1400px]">
+        <div className={`relative h-full w-full ${spinning ? "animate-turntable" : ""}`}>
+          <Image src="/sports-car-wireframe.png" alt="Modelo 3D wireframe" fill priority className="object-contain p-6 md:p-10" />
+        </div>
+      </div>
+
+      {(status === 'idle' || status === 'recording') && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="animate-scan-line h-24 w-full bg-gradient-to-b from-transparent via-sky-400/10 to-transparent" />
+        </div>
+      )}
+
+      {status === 'generating' && (
+        <div className="absolute inset-0 bg-zinc-950/60 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+           <div className="w-16 h-16 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+           <div className="text-sky-400 font-bold text-2xl animate-pulse">Aplicando Tuning...</div>
+        </div>
+      )}
+
+      {(status === 'idle' || status === 'recording') && (
+        <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-zinc-950/70 px-3 py-1.5 text-xs font-medium text-sky-300 ring-1 ring-sky-400/30 backdrop-blur md:right-6 md:top-6">
+          <Rotate3d className="h-4 w-4" aria-hidden="true" /> Aguardando Input
+        </div>
+      )}
+    </div>
+  )
+}
