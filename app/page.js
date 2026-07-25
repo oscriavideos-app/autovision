@@ -1,19 +1,30 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Mic, MicOff, ArrowUp, X, Share2, RotateCcw, Video } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Mic, MicOff, ArrowUp, X, Share2, RotateCcw, Video, Download } from 'lucide-react';
 
 export default function Home() {
   const [status, setStatus] = useState('idle'); 
   const [transcript, setTranscript] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   
-  // Novos estados para o Vídeo 360
   const [videoUrl, setVideoUrl] = useState('');
   const [videoStatusTexto, setVideoStatusTexto] = useState('');
   
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  // Recarrega o pedido salvo do localStorage se o usuário fechou a página durante a renderização
+  useEffect(() => {
+    const pedidoSalvo = localStorage.getItem('lumaRequestId');
+    const imagemSalva = localStorage.getItem('lumaImageUrl');
+    
+    if (pedidoSalvo && imagemSalva) {
+      setImageUrl(imagemSalva);
+      setStatus('done');
+      monitorarVideoNaNuvem(pedidoSalvo);
+    }
+  }, []);
 
   async function startRecording() {
     try {
@@ -42,7 +53,7 @@ export default function Home() {
     fd.append('audio', blob, 'recording.webm');
     
     try {
-      const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+      const res = await fetch('/api/transcribe', { method: 'POST', body: fd, cache: 'no-store' });
       const data = await res.json();
       setTranscript(data.text || "Erro ao limpar o texto. Tente novamente.");
       setStatus('review');
@@ -60,6 +71,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: transcript }),
+        cache: 'no-store'
       });
       
       const data = await res.json();
@@ -76,7 +88,7 @@ export default function Home() {
     }
   }
 
-  // --- NOVA FUNÇÃO: GERAÇÃO DO VÍDEO 360 ---
+  // --- GERAÇÃO E MONITORAMENTO DO VÍDEO 360 ---
   async function iniciarGeracaoVideo360() {
     setVideoStatusTexto("Iniciando motor 3D...");
     
@@ -86,46 +98,84 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           prompt: "Smooth 360-degree camera orbit pan around the car, photorealistic, keep details exactly as the image",
-          imageUrl: imageUrl // Usa a imagem que a IA acabou de gerar na tela!
-        })
+          imageUrl: imageUrl 
+        }),
+        cache: 'no-store'
       });
       
       const dados = await resposta.json();
       const requestId = dados.requestId;
 
-      setVideoStatusTexto("Renderizando giro 360º em segundo plano. Aguarde...");
+      localStorage.setItem('lumaRequestId', requestId);
+      localStorage.setItem('lumaImageUrl', imageUrl);
 
-      const intervalo = setInterval(async () => {
-        const checagem = await fetch(`/api/checar-status?requestId=${requestId}`);
-        const resultadoStatus = await checagem.json();
-
-        if (resultadoStatus.status === "COMPLETED") {
-          clearInterval(intervalo);
-          setVideoStatusTexto(""); // Limpa o texto
-          setVideoUrl(resultadoStatus.videoUrl); // Carrega o vídeo na tela
-        } else if (resultadoStatus.status === "FAILED") {
-          clearInterval(intervalo);
-          setVideoStatusTexto("Erro ao gerar o vídeo. Tente novamente.");
-        }
-      }, 5000);
+      monitorarVideoNaNuvem(requestId);
       
     } catch (error) {
       setVideoStatusTexto("Erro de conexão com o estúdio 3D.");
     }
   }
 
-  function shareToWhatsApp() {
-    const text = `Veja o projeto exclusivo gerado: https://tuning-chi.vercel.app/`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  function monitorarVideoNaNuvem(requestId) {
+    setVideoStatusTexto("Renderizando vídeo 360º. Você pode fechar a aba se desejar.");
+
+    const intervalo = setInterval(async () => {
+      try {
+        const checagem = await fetch(`/api/checar-status?requestId=${requestId}`, { cache: 'no-store' });
+        const resultadoStatus = await checagem.json();
+
+        if (resultadoStatus.status === "COMPLETED") {
+          clearInterval(intervalo);
+          setVideoStatusTexto(""); 
+          setVideoUrl(resultadoStatus.videoUrl); 
+          localStorage.removeItem('lumaRequestId');
+          localStorage.removeItem('lumaImageUrl');
+        } else if (resultadoStatus.status === "FAILED") {
+          clearInterval(intervalo);
+          setVideoStatusTexto("Erro no servidor ao gerar o vídeo.");
+          localStorage.removeItem('lumaRequestId');
+        }
+      } catch (err) {
+        console.error("Aguardando reconexão...", err);
+      }
+    }, 5000);
   }
 
-  // Função para resetar tudo e fazer um carro novo
+  // --- FUNÇÃO DE DOWNLOAD DIRETO PARA O CELULAR ---
+  async function baixarMidia(url, nomeArquivo) {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      window.open(url, '_blank');
+    }
+  }
+
+  // --- FUNÇÃO PARA COMPARTILHAR O VÍDEO / FOTO NO WHATSAPP ---
+  function compartilharWhatsApp() {
+    const midiaParaEnviar = videoUrl || imageUrl;
+    const tipo = videoUrl ? 'vídeo 360º' : 'projeto 3D';
+    const mensagem = `Confira meu ${tipo} do Celta customizado no Auto Vision:\n${midiaParaEnviar}`;
+    
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
+  }
+
   function resetProject() {
     setStatus('idle'); 
     setImageUrl(''); 
     setTranscript('');
     setVideoUrl('');
     setVideoStatusTexto('');
+    localStorage.removeItem('lumaRequestId');
+    localStorage.removeItem('lumaImageUrl');
   }
 
   return (
@@ -177,7 +227,7 @@ export default function Home() {
       {status === 'done' && imageUrl && (
         <div className="w-full flex flex-col items-center gap-6">
           
-          {/* Se o vídeo ainda não estiver pronto, mostra a foto */}
+          {/* Exibição da Imagem (se não houver vídeo) */}
           {!videoUrl && (
             <div className="w-full max-w-2xl relative bg-white rounded-xl shadow-[0_0_30px_rgba(0,255,255,0.15)] p-2">
               <img 
@@ -188,7 +238,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Se o vídeo estiver pronto, mostra o vídeo rodando */}
+          {/* Exibição do Vídeo 360 */}
           {videoUrl && (
              <div className="w-full max-w-2xl relative bg-white rounded-xl shadow-[0_0_40px_rgba(168,85,247,0.3)] p-2">
                 <video 
@@ -201,22 +251,29 @@ export default function Home() {
              </div>
           )}
 
-          {/* Status do Vídeo sendo gerado */}
           {videoStatusTexto && (
-             <div className="text-purple-400 text-lg font-bold animate-pulse text-center">
+             <div className="text-purple-400 text-sm font-bold animate-pulse text-center px-4">
                {videoStatusTexto}
              </div>
           )}
 
-          {/* Botão de Gerar Vídeo (Some depois que o vídeo é gerado ou enquanto está carregando) */}
           {!videoUrl && !videoStatusTexto && (
              <button onClick={iniciarGeracaoVideo360} className="w-full max-w-sm h-16 rounded-2xl bg-purple-600/20 border border-purple-500 text-purple-400 font-bold text-lg flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:bg-purple-600/30">
                <Video className="w-6 h-6"/> Gerar Visão 360º (Efeito Uau)
              </button>
           )}
-          
-          <button onClick={shareToWhatsApp} className="w-full max-w-sm h-16 rounded-2xl bg-[#25D366]/20 border border-[#25D366] text-[#25D366] font-bold text-lg flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(37,211,102,0.4)] hover:bg-[#25D366]/30">
-            <Share2 className="w-5 h-5"/> Compartilhar
+
+          {/* Botão de Download do Vídeo ou da Imagem */}
+          <button 
+            onClick={() => baixarMidia(videoUrl || imageUrl, videoUrl ? 'celta-360.mp4' : 'celta-customizado.png')} 
+            className="w-full max-w-sm h-16 rounded-2xl bg-blue-600/20 border border-blue-500 text-blue-400 font-bold text-lg flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:bg-blue-600/30"
+          >
+            <Download className="w-5 h-5"/> Baixar {videoUrl ? 'Vídeo 360º' : 'Foto'}
+          </button>
+
+          {/* Botão WhatsApp */}
+          <button onClick={compartilharWhatsApp} className="w-full max-w-sm h-16 rounded-2xl bg-[#25D366]/20 border border-[#25D366] text-[#25D366] font-bold text-lg flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(37,211,102,0.4)] hover:bg-[#25D366]/30">
+            <Share2 className="w-5 h-5"/> Compartilhar no WhatsApp
           </button>
           
           <button onClick={resetProject} className="flex items-center gap-2 text-gray-400 hover:text-white underline mt-2">
