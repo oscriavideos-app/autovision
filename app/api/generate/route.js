@@ -1,98 +1,97 @@
 import { NextResponse } from 'next/server';
-import { fal } from '@fal-ai/client';
-import OpenAI from 'openai';
-
-export const runtime = 'nodejs';
-export const maxDuration = 60;
-export const dynamic = 'force-dynamic';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { fal } from "@fal-ai/client";
 
 export async function POST(req) {
   try {
-    if (!process.env.FAL_KEY) {
-      return NextResponse.json({ error: 'Chave Fal.ai ausente.' }, { status: 500 });
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const text = (body.text || '').trim();
+    const body = await req.json();
+    const { text } = body;
     
     if (!text) {
-      return NextResponse.json({ error: 'Descrição vazia.' }, { status: 400 });
+      return NextResponse.json({ error: 'Texto não fornecido' }, { status: 400 });
     }
 
-    // PASSO 1: O GEOMETRISTA (Fim da mutação para esportivos)
-    const taxonomistResponse = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert automotive geometric designer. The user will give you a car description. Your job is to create a 'Visual Geometry Blueprint' so an image AI perfectly recreates it without hallucinating modern or incorrect shapes.
-          1. Identify the exact make, model, and year.
-          2. Describe its EXACT body style and geometry (e.g., small 2-door economy hatchback, compact simple lines).
-          3. Detail the headlights shape, grille design, and stance.
-          4. CRITICAL: If it's a South American/regional commuter car (like Chevrolet Celta, Fiat Palio, VW Gol), explicitly command the AI to keep the design basic, rounded, and economical. Strictly FORBID it from looking like a modern sports car, Veloster, or having aggressive aero kits unless the user asked for it.
-          Output ONLY the visual blueprint paragraph.`
-        },
-        { role: 'user', content: text }
-      ],
-      temperature: 0.1,
-    });
+    const t = text.toLowerCase();
 
-    const carAnatomyBlueprint = taxonomistResponse.choices[0].message.content;
+    // 1. COR PRINCIPAL DA LATARIA E CAPÔ
+    let corCorpo = "black"; // padrão
+    if (t.includes("branco") && !t.includes("teto branco")) corCorpo = "white";
+    else if (t.includes("prata")) corCorpo = "silver";
+    else if (t.includes("vermelho") && !t.includes("rodas vermelhas")) corCorpo = "red";
+    else if (t.includes("cinza")) corCorpo = "grey";
+    else if (t.includes("azul")) corCorpo = "blue";
+    else if (t.includes("amarelo")) corCorpo = "yellow";
 
-    // PASSO 2: O ENGENHEIRO DE PROMPT (Isolamento de Teto e Detalhes)
-    const promptBuilder = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a Master Automotive Prompt Engineer. Using the car blueprint and user request, generate a strict, highly detailed English prompt for the FLUX Dev image generator.
+    // 2. DETECTOR DE TETO BICOLOR
+    let detalheTeto = `same ${corCorpo} color as the body`;
+    if (t.includes("teto branco")) {
+      detalheTeto = "painted in solid crisp white finish (two-tone contrast)";
+    } else if (t.includes("teto preto")) {
+      detalheTeto = "painted in solid glossy black finish (two-tone contrast)";
+    } else if (t.includes("carbono")) {
+      detalheTeto = "made of real woven carbon fiber";
+    }
 
-          CRITICAL RULES (THE INFINITE ISOLATION PROTOCOL):
-          1. Follow the anatomical blueprint strictly to maintain the exact commuter or specific shape. Do not make standard cars look like supercars.
-          2. UNIVERSAL COMPONENT ISOLATION: Treat the car as an assembly of separate 3D parts.
-          3. ROOF vs PILLARS ISOLATION (CRITICAL): If a specific roof color is requested, you MUST explicitly state that the A-pillars, B-pillars, and C-pillars remain the PRIMARY BODY COLOR. Only the top roof panel changes color.
-          4. MICRO-DETAILS (ANTI-BLUR): For small contrasting items (like gold door handles, colored brake calipers, specific wheel spokes), describe them distinctly and sharply. Use language that prevents their color from bleeding into the surrounding dark body.
-          5. Frame the prompt for clear material distinction (glossy paint, matte plastic, chrome).
-          6. MANDATORY START: "Masterpiece, award-winning professional automotive photography, 8k resolution, hyper-realistic, Unreal Engine 5 render, ray tracing, specular reflections, 35mm lens, cinematic studio lighting, deep depth of field, vivid and extremely accurate colors."
-          7. Output ONLY the final detailed paragraph prompt.`
-        },
-        { role: 'user', content: `Blueprint: ${carAnatomyBlueprint} | Original User Request: ${text}` }
-      ],
-      temperature: 0.1,
-    });
+    // 3. DETECTOR E COR DAS RODAS
+    let corRoda = "";
+    if (t.includes("vermelha") || t.includes("vermelhas")) corRoda = "red";
+    else if (t.includes("preta") || t.includes("pretas")) corRoda = "black";
+    else if (t.includes("dourada") || t.includes("douradas")) corRoda = "gold";
+    else if (t.includes("prata") || t.includes("cromada")) corRoda = "silver chrome";
 
-    const engineeredPrompt = promptBuilder.choices[0].message.content.trim();
-    console.log('[Prompt Final HD]:', engineeredPrompt);
+    let detalheRodas = "custom alloy wheels";
+    if (t.includes("bbs")) {
+      detalheRodas = corRoda ? `${corRoda} BBS mesh alloy wheels` : "BBS mesh alloy wheels";
+    } else if (t.includes("te37") || t.includes("volk")) {
+      detalheRodas = corRoda ? `${corRoda} Volk TE37 alloy wheels` : "Volk TE37 alloy wheels";
+    } else if (t.includes("stock") || t.includes("original") || t.includes("originais")) {
+      detalheRodas = "factory original OEM stock wheels";
+    } else if (corRoda) {
+      detalheRodas = `${corRoda} alloy wheels`;
+    }
 
-    // PASSO 3: MOTOR FLUX DEV (Semente livre e processamento no máximo)
-    fal.config({ credentials: process.env.FAL_KEY });
-    const result = await fal.subscribe('fal-ai/flux/dev', {
+    // 4. SUSPENSÃO / POSTURA
+    let postura = "standard factory suspension clearance";
+    if (t.includes("slammed") || t.includes("slamad") || t.includes("rebaixado") || t.includes("socado") || t.includes("pregado") || t.includes("fixa") || t.includes("ar")) {
+      postura = "slammed lowered suspension stance";
+    }
+
+    // 5. LIMPEZA DO MODELO (Extrai o nome do carro sem as gírias/cores)
+    let modeloCarro = text
+      .replace(/teto branco|teto preto|teto carbono|rodas vermelhas|rodas pretas|rodas douradas|roda vermelha|roda preta|slammed|slamad|rebaixado|socado|pregado|fixa|stock|original/gi, "")
+      .trim();
+    
+    if (!modeloCarro) modeloCarro = "car";
+
+    // 6. ÂNGULO DE CÂMERA
+    let anguloCamera = "front three-quarter view showing front grille, hood, roof and side profile";
+    if (t.includes("traseira") || t.includes("escapamento") || t.includes("lanterna") || t.includes("porta-mala") || t.includes("aerofólio")) {
+      anguloCamera = "rear three-quarter view showing rear lights, trunk, roof and side profile";
+    }
+
+    // 7. PROMPT ESTRUTURADO SEM VAZAMENTO
+    const promptFlux = `A professional automotive studio photograph of an authentic ${modeloCarro}. 
+The car body, doors, and front hood are painted in glossy ${corCorpo}. 
+The roof panel is ${detalheTeto}. 
+Equipped with ${detalheRodas} and ${postura}. 
+Factory emblems, side mirrors, and headlights remain standard. 
+Shot from a ${anguloCamera} in a minimalist automotive studio with a solid light grey backdrop and polished floor. Crisp 8k DSLR quality, photorealistic, sharp focus.`;
+
+    // Chamada no Fal.ai (Flux Dev)
+    const result = await fal.subscribe("fal-ai/flux/dev", {
       input: {
-        prompt: engineeredPrompt,
-        image_size: 'landscape_16_9',
-        num_inference_steps: 40, // Aumentado para 40: Força nitidez máxima em maçanetas e rodas complexas
-        guidance_scale: 3.5,
-        num_images: 1,
-        enable_safety_checker: true,
-        // SEED REMOVIDO: A IA agora tem liberdade para não embaçar a imagem ao desenhar peças novas.
+        prompt: promptFlux,
+        image_size: "landscape_16_9",
+        num_inference_steps: 30,
+        guidance_scale: 3.5
       },
-      logs: false
+      logs: true,
     });
 
-    const url = result?.data?.images?.[0]?.url;
+    return NextResponse.json({ images: [result.data.images[0].url] });
 
-    if (!url) {
-      return NextResponse.json({ error: 'Falha ao gerar imagem.' }, { status: 502 });
-    }
-
-    return NextResponse.json({ images: [url] });
-
-  } catch (err) {
-    console.error('[generate]', err);
-    return NextResponse.json({ error: err?.message || 'Erro interno.' }, { status: 500 });
+  } catch (error) {
+    console.error("Erro na rota de geração:", error);
+    return NextResponse.json({ error: 'Erro ao gerar imagem' }, { status: 500 });
   }
-          }
+                                            }
+                        
