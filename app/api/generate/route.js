@@ -12,30 +12,29 @@ export async function POST(req) {
 
     const t = text.toLowerCase();
 
-    // 1. COR PRINCIPAL DA LATARIA E CAPÔ
-    let corCorpo = "black"; // padrão
-    if (t.includes("branco") && !t.includes("teto branco")) corCorpo = "white";
-    else if (t.includes("prata")) corCorpo = "silver";
-    else if (t.includes("vermelho") && !t.includes("rodas vermelhas")) corCorpo = "red";
-    else if (t.includes("cinza")) corCorpo = "grey";
-    else if (t.includes("azul")) corCorpo = "blue";
-    else if (t.includes("amarelo")) corCorpo = "yellow";
+    // 1. IDENTIFICAÇÃO DA COR PRINCIPAL DA LATARIA
+    let corCorpo = "glossy jet black";
+    if (t.includes("branco") && !t.includes("teto branco")) corCorpo = "glossy white";
+    else if (t.includes("prata")) corCorpo = "metallic silver";
+    else if (t.includes("vermelho") && !t.includes("rodas vermelhas")) corCorpo = "glossy red";
+    else if (t.includes("cinza")) corCorpo = "metallic grey";
+    else if (t.includes("azul")) corCorpo = "glossy blue";
 
     // 2. DETECTOR DE TETO BICOLOR
-    let detalheTeto = `same ${corCorpo} color as the body`;
+    let detalheTeto = `roof panel painted in ${corCorpo}`;
     if (t.includes("teto branco")) {
-      detalheTeto = "painted in solid crisp white finish (two-tone contrast)";
+      detalheTeto = "top roof panel painted in solid crisp white";
     } else if (t.includes("teto preto")) {
-      detalheTeto = "painted in solid glossy black finish (two-tone contrast)";
+      detalheTeto = "top roof panel painted in solid glossy black";
     } else if (t.includes("carbono")) {
-      detalheTeto = "made of real woven carbon fiber";
+      detalheTeto = "top roof panel in real carbon fiber finish";
     }
 
-    // 3. DETECTOR E COR DAS RODAS
+    // 3. ISOLAMENTO DE CORES DAS RODAS
     let corRoda = "";
-    if (t.includes("vermelha") || t.includes("vermelhas")) corRoda = "red";
-    else if (t.includes("preta") || t.includes("pretas")) corRoda = "black";
-    else if (t.includes("dourada") || t.includes("douradas")) corRoda = "gold";
+    if (t.includes("vermelha") || t.includes("vermelhas")) corRoda = "bright red";
+    else if (t.includes("preta") || t.includes("pretas")) corRoda = "glossy black";
+    else if (t.includes("dourada") || t.includes("douradas")) corRoda = "metallic gold";
     else if (t.includes("prata") || t.includes("cromada")) corRoda = "silver chrome";
 
     let detalheRodas = "custom alloy wheels";
@@ -44,45 +43,45 @@ export async function POST(req) {
     } else if (t.includes("te37") || t.includes("volk")) {
       detalheRodas = corRoda ? `${corRoda} Volk TE37 alloy wheels` : "Volk TE37 alloy wheels";
     } else if (t.includes("stock") || t.includes("original") || t.includes("originais")) {
-      detalheRodas = "factory original OEM stock wheels";
+      detalheRodas = "factory stock OEM silver wheels";
     } else if (corRoda) {
-      detalheRodas = `${corRoda} alloy wheels`;
+      detalheRodas = `${corRoda} alloy wheel rims`;
     }
 
-    // 4. SUSPENSÃO / POSTURA
-    let postura = "standard factory suspension clearance";
+    // 4. SUSPENSÃO E POSTURA
+    let postura = "factory stock suspension height";
     if (t.includes("slammed") || t.includes("slamad") || t.includes("rebaixado") || t.includes("socado") || t.includes("pregado") || t.includes("fixa") || t.includes("ar")) {
       postura = "slammed lowered suspension stance";
     }
 
-    // 5. LIMPEZA DO MODELO (Extrai o nome do carro sem as gírias/cores)
-    let modeloCarro = text
-      .replace(/teto branco|teto preto|teto carbono|rodas vermelhas|rodas pretas|rodas douradas|roda vermelha|roda preta|slammed|slamad|rebaixado|socado|pregado|fixa|stock|original/gi, "")
-      .trim();
-    
-    if (!modeloCarro) modeloCarro = "car";
-
-    // 6. ÂNGULO DE CÂMERA
-    let anguloCamera = "front three-quarter view showing front grille, hood, roof and side profile";
+    // 5. ÂNGULO DE CÂMERA
+    let anguloCamera = "front three-quarter view showing front grille, hood, roof panel, and side wheels";
     if (t.includes("traseira") || t.includes("escapamento") || t.includes("lanterna") || t.includes("porta-mala") || t.includes("aerofólio")) {
-      anguloCamera = "rear three-quarter view showing rear lights, trunk, roof and side profile";
+      anguloCamera = "rear three-quarter view showing rear taillights, trunk, roof panel, and side wheels";
     }
 
-    // 7. PROMPT ESTRUTURADO SEM VAZAMENTO
-    const promptFlux = `A professional automotive studio photograph of an authentic ${modeloCarro}. 
-The car body, doors, and front hood are painted in glossy ${corCorpo}. 
-The roof panel is ${detalheTeto}. 
-Equipped with ${detalheRodas} and ${postura}. 
-Factory emblems, side mirrors, and headlights remain standard. 
-Shot from a ${anguloCamera} in a minimalist automotive studio with a solid light grey backdrop and polished floor. Crisp 8k DSLR quality, photorealistic, sharp focus.`;
+    // 6. PROMPT ESTRUTURADO COM ISOLAMENTO DE PEÇAS E NITIDEZ
+    const promptFlux = `Sharp 8k DSLR photo of an authentic 2009 Chevrolet Celta subcompact hatchback (Latin American Opel Corsa B hatchback body shape).
+
+COLOR AND COMPONENT ASSIGNMENT:
+- Main body, front hood, doors, and bumpers: ${corCorpo}.
+- Roof: ${detalheTeto}.
+- Wheel Rims: ${detalheRodas}.
+- Stance: ${postura}.
+- Side mirrors and door handles: factory stock black plastic.
+- Headlights and grille: original clear glass headlights and standard Chevrolet emblem.
+
+PHOTOGRAPHY SETTING:
+- Angle: ${anguloCamera}.
+- Studio: Professional automotive studio with a clean neutral light grey background and soft balanced illumination. High sharpness, razor-sharp focus, detailed textures, realistic vehicle paint.`;
 
     // Chamada no Fal.ai (Flux Dev)
     const result = await fal.subscribe("fal-ai/flux/dev", {
       input: {
         prompt: promptFlux,
         image_size: "landscape_16_9",
-        num_inference_steps: 30,
-        guidance_scale: 3.5
+        num_inference_steps: 32, // Mantido em 32 para máxima nitidez das linhas
+        guidance_scale: 3.8     // Aumentado ligeiramente para forçar cumprimento estrito do prompt
       },
       logs: true,
     });
@@ -93,5 +92,4 @@ Shot from a ${anguloCamera} in a minimalist automotive studio with a solid light
     console.error("Erro na rota de geração:", error);
     return NextResponse.json({ error: 'Erro ao gerar imagem' }, { status: 500 });
   }
-                                            }
-                        
+}
