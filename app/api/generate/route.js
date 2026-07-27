@@ -23,13 +23,19 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Descrição vazia.' }, { status: 400 });
     }
 
-    // PASSO 1: O GEOMETRISTA (O Cérebro que sabe exatamente o que é um Celta)
+    // PASSO 1: GEOMETRISTA RIGOROSO ESPECIALIZADO NO CELTA BRASILEIRO
     const taxonomistResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `You are an expert global automotive geometric designer. Analyze the user request. Identify the exact car make, model, year, and regional body shape. If it's a Brazilian Chevrolet Celta, strictly define its small, rounded, basic hatchback shape so the image AI doesn't hallucinate modern features or sports car shapes.`
+          content: `You are an expert automotive historian and designer specializing in Latin American cars. 
+          The user is asking for a "Chevrolet Celta 2009". 
+          CRITICAL ANATOMY OF A BRAZILIAN CHEVROLET CELTA (2009 model):
+          - It is a small 2-door or 4-door entry-level hatchback developed on the GM Opel Corsa B platform.
+          - It has distinct, simple, rounded-yet-angular headlights, a small front grille with the Chevrolet bowtie badge in the center, clean side door panels without exaggerated modern body creases, and a compact, modest rear hatch.
+          - IT IS NOT a modern European hatchback, NOT a sedan, and NOT a sports car. 
+          Strictly define this exact box/hatchback shape so the image generator does not hallucinate modern foreign shapes.`
         },
         { role: 'user', content: text }
       ],
@@ -38,21 +44,21 @@ export async function POST(req) {
 
     const carAnatomyBlueprint = taxonomistResponse.choices[0].message.content;
 
-    // PASSO 2: O ENGENHEIRO DE PROMPT (Com Trava de Capô e Fundo Cinza)
+    // PASSO 2: ENGENHEIRO DE PROMPT COM FOCO EM FOTOGRAFIA REAL (SEM CARA DE DESENHO)
     const promptBuilder = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `You are a Master Automotive Prompt Engineer. Generate a highly detailed English prompt for the FLUX Dev image generator based on the blueprint and user request.
+          content: `You are a Master Automotive Commercial Photographer. Generate a hyper-realistic English prompt for the FLUX Dev image generator based on the blueprint and user request.
 
-          CRITICAL RULES (ABSOLUTE ISOLATION PROTOCOL):
-          1. HOOD & BODY LOCK: The main car body, doors, AND FRONT HOOD must strictly match the primary requested color. They are the same color.
-          2. ROOF ISOLATION: If a white roof (or other color) is requested, specify that ONLY the flat top roof panel is that color. It must NOT bleed into the hood, pillars, or mirrors.
-          3. WHEELS: Apply wheel color ONLY to the rims. Do NOT bleed this color onto the bumper, grille, or badges.
-          4. CAMERA ANGLE: Default to a low-angle front three-quarter view. If the user mentions rear parts, change to a rear three-quarter view.
-          5. ENVIRONMENT: The car MUST be in a minimalist professional photography studio with a SOLID NEUTRAL MEDIUM GREY background and polished concrete floor.
-          6. Output ONLY the final detailed paragraph prompt starting with: "Award-winning professional automotive photography, 8k resolution, razor-sharp focus, DSLR, realistic metallic paint..."`
+          RULES FOR PHOTOREALISM & ISOLATION:
+          1. REAL PHOTOGRAPHY STYLE: Must look like a real photograph taken with a physical DSLR camera (e.g., Canon EOS R5, 85mm lens, f/2.8, natural light falloff, authentic metallic paint texture with subtle dust/reflections, no cartoonish or 3D render look).
+          2. BODY & HOOD LOCK: The main body, doors, and front hood must share the exact primary color specified by the user (e.g., glossy black).
+          3. ROOF ISOLATION: If a contrasting roof color is requested (e.g., white roof), ONLY the flat top roof panel changes color. Mirrors, pillars, and hood remain the primary body color.
+          4. WHEEL ISOLATION: If wheel color is specified (e.g., red), apply it ONLY to the alloy wheel rims. Grille, badges, and bumpers must remain standard.
+          5. ENVIRONMENT: Professional minimalist automotive studio with a solid neutral medium grey concrete floor and soft, diffused overhead softbox lighting. (No pure white backgrounds that cause blown-out cartoon looks).
+          6. Output ONLY the final detailed paragraph prompt starting with: "Real professional photograph of..."`
         },
         { role: 'user', content: `Blueprint: ${carAnatomyBlueprint} | Original User Request: ${text}` }
       ],
@@ -60,16 +66,16 @@ export async function POST(req) {
     });
 
     const engineeredPrompt = promptBuilder.choices[0].message.content.trim();
-    console.log('[Prompt Final HD]:', engineeredPrompt);
+    console.log('[Prompt Final Fotorrealista]:', engineeredPrompt);
 
-    // PASSO 3: MOTOR FLUX DEV (Restaurado para a nitidez original)
+    // PASSO 3: MOTOR FLUX DEV (Ajustado para máxima fidelidade fotográfica)
     fal.config({ credentials: process.env.FAL_KEY });
     const result = await fal.subscribe('fal-ai/flux/dev', {
       input: {
         prompt: engineeredPrompt,
         image_size: 'landscape_16_9',
-        num_inference_steps: 30, // Retornado ao padrão ideal do Flux para evitar foto embaçada
-        guidance_scale: 3.5,     // Retornado ao padrão fotográfico (evita o aspecto de plástico)
+        num_inference_steps: 32, 
+        guidance_scale: 3.3,     // Mantido equilibrado para evitar o aspecto plástico/embaçado
         num_images: 1,
         enable_safety_checker: true,
       },
@@ -88,4 +94,4 @@ export async function POST(req) {
     console.error('[generate]', err);
     return NextResponse.json({ error: err?.message || 'Erro interno.' }, { status: 500 });
   }
-}
+          }
