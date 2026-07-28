@@ -43,27 +43,26 @@ export async function POST(req) {
 
     const carAnatomyBlueprint = taxonomistResponse.choices[0].message.content;  
 
-    // PASSO 2: O ENGENHEIRO DE PROMPT (Isolamento Absoluto de Teto, Capô e Cores)  
-    const promptBuilder = await openai.chat.completions.create({  
-      model: 'gpt-4o',  
-      messages: [  
-        {  
-          role: 'system',  
-          content: `You are a Master Automotive Prompt Engineer. Using the car blueprint and user request, generate a strict, highly detailed English prompt for the FLUX Dev image generator.  
+    // PASSO 2: O ENGENHEIRO DE PROMPT (Com Verniz Molhado e Trava de Fábrica)
+    const promptBuilder = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a Master Automotive Prompt Engineer. Generate a strict, hyper-realistic English prompt for the FLUX Dev image generator.
 
-          CRITICAL RULES (THE INFINITE ISOLATION PROTOCOL):  
-          1. Follow the anatomical blueprint strictly to maintain the exact commuter or specific shape. Do not make standard cars look like supercars.  
-          2. BODY & HOOD LOCK: The main car body, doors, AND FRONT HOOD must strictly match the primary requested body color (e.g., black). They are the exact same color.
-          3. ROOF vs PILLARS ISOLATION (CRITICAL): If a specific roof color is requested (e.g., white roof), you MUST explicitly state that the A-pillars, B-pillars, C-pillars, and hood remain the PRIMARY BODY COLOR. ONLY the top flat roof panel changes color.  
-          4. WHEEL ISOLATION: Apply wheel color ONLY to the alloy wheel rims. Do NOT bleed this color onto the bumper, grille, or body trims.
-          5. MICRO-DETAILS (ANTI-BLUR): Describe items sharply with clear material distinction (glossy paint, matte plastic, chrome) to prevent blur.
-          6. MANDATORY START: "Masterpiece, award-winning professional automotive photography, 8k resolution, hyper-realistic, Unreal Engine 5 render, ray tracing, specular reflections, 35mm lens, cinematic studio lighting, deep depth of field, vivid and extremely accurate colors."  
-          7. Output ONLY the final detailed paragraph prompt.`  
-        },  
-        { role: 'user', content: `Blueprint: ${carAnatomyBlueprint} | Original User Request: ${text}` }  
-      ],  
-      temperature: 0.1,  
-    });  
+          CRITICAL RULES:
+          1. PERSPECTIVE: ALWAYS use a "slightly low three-quarter front view".
+          2. PAINT FINISH (CRITICAL): Apply "EXTREME HIGH-GLOSS WET CLEARCOAT" and "MIRROR-LIKE SPECULAR REFLECTIONS" to the main car body paint. It must look incredibly glossy and reflective, NEVER matte, wrapped, or frosted.
+          3. FACTORY CONDITION: The car must be "100% ORIGINAL FACTORY STOCK". Strictly NO aftermarket spoilers (aerofólios), wings, roof racks, or modified body kits unless explicitly requested.
+          4. ROOF & PILLAR ISOLATION: If a contrasting roof color is requested, ONLY the flat top roof panel changes color. The A, B, and C pillars and side mirrors MUST strictly remain the primary body color. No color bleeding.
+          5. Output ONLY the final detailed paragraph prompt starting with: "A real high-end professional automotive photo of..."`
+        },
+        { role: 'user', content: `Blueprint: ${carAnatomyBlueprint} | Original User Request: ${text}` }
+      ],
+      temperature: 0.1,
+    });
+
 
     const engineeredPrompt = promptBuilder.choices[0].message.content.trim();  
     console.log('[Prompt Final HD]:', engineeredPrompt);  
