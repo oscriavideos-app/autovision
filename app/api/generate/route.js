@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { fal } from '@fal-ai/client';
 import OpenAI from 'openai';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -12,85 +13,69 @@ const openai = new OpenAI({
 
 export async function POST(req) {
   try {
-    if (!process.env.FAL_KEY) {
-      return NextResponse.json({ error: 'Chave Fal.ai ausente.' }, { status: 500 });
+    // 1. Validação de Segurança da Chave
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('[AutoVision ERRO]: Chave OPENAI_API_KEY ausente no ambiente.');
+      return NextResponse.json(
+        { error: 'Chave OPENAI_API_KEY não configurada no servidor.' }, 
+        { status: 500 }
+      );
     }
 
+    // 2. Leitura do corpo da requisição enviada pelo frontend
     const body = await req.json().catch(() => ({}));
     const text = (body.text || '').trim();
     
     if (!text) {
-      return NextResponse.json({ error: 'Descrição vazia.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Descrição do veículo vazia.' }, 
+        { status: 400 }
+      );
     }
 
-    // PASSO 1: O TAXINOMISTA (Identificação limpa e sem viés)
-    const taxonomistResponse = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert global automotive geometric designer. Analyze the user request:
-          1. Identify exact make, model, year, and geometry.
-          2. Describe precise factory lines, original headlights, grille, and body panels.
-          3. Enforce authentic stock shape. Do NOT inject details of other car models.
-          Output ONLY the detailed visual geometry blueprint paragraph.`
-        },
-        { role: 'user', content: text }
-      ],
-      temperature: 0.1,
+    console.log('[AutoVision] Processando solicitação de imagem Premium para:', text);
+
+    // 3. Chamada oficial à API da OpenAI com o modelo atualizado e prompt otimizado
+    const response = await openai.images.generate({
+      model: "gpt-image-2", 
+      prompt: `Premium automotive studio photography of: ${text}. 
+      CRITICAL SETTINGS: Photorealistic, ultra-detailed masterpiece. 
+      LIGHTING & MATERIALS: High gloss paint with flawless clear coat, dramatic studio light reflections on the body, fenders, hood, and glass. 
+      ENVIRONMENT: Clean studio background with a highly contrasting color to make the car pop and stand out. 
+      RULES: 100% stock factory body shape. NO convertibles. NO tuning bodykits. Perfect, straight lines and decals without distortion.`,
+      n: 1,
+      size: "1024x1024"
     });
 
-    const carAnatomyBlueprint = taxonomistResponse.choices[0].message.content;
+    // 4. Tratamento de compatibilidade (URL direta ou conversão de Base64)
+    let imageUrl = response?.data?.[0]?.url;
+    const base64Data = response?.data?.[0]?.b64_json;
 
-    // PASSO 2: O ENGENHEIRO DE PROMPT (Com suas regras de Softbox, Reflexo Lateral e Farol Cristalino)
-    const promptBuilder = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a Master Automotive Prompt Engineer. Generate a strict prompt for FLUX Dev.
-
-          CRITICAL RULES (LIGHTING, GLASS CLARITY & ISOLATION):
-          1. PERSPECTIVE: Slightly low three-quarter front view.
-          2. HEADLIGHTS & GLASS: Headlights MUST feature crystal-clear transparent glass lenses with high-definition internal reflectors and bright bulbs. Absolutely NO foggy, frosted, matte, or dull headlights.
-          3. LIGHTING & GLOSS: Professional softbox studio lighting. High-gloss specular highlights concentrated strictly along the SIDE doors, fenders, and side body character lines. Deep, rich clearcoat paint gloss.
-          4. ROOF & PILLAR ISOLATION: The top horizontal roof panel maintains a clean uniform finish without glare. Do NOT bleed roof colors onto A/B/C pillars or side doors.
-          5. CAMERA & SETTING: Minimalist professional automotive studio with a solid neutral grey backdrop and polished concrete floor. High depth of field, profound depth, and crisp reflections. High resolution, razor-sharp focus. NOT a drawing, 3D render, or matte wrap.
-          6. Output ONLY the final prompt starting with: "A real high-end professional automotive photo of..."`
-        },
-        { role: 'user', content: `Blueprint: ${carAnatomyBlueprint} | Original User Request: ${text}` }
-      ],
-      temperature: 0.1,
-    });
-
-    const engineeredPrompt = promptBuilder.choices[0].message.content.trim();
-    console.log('[Prompt Final HD]:', engineeredPrompt);
-
-    // PASSO 3: MOTOR FLUX DEV (Configurações Ouro: 35 passos e 3.8 scale)
-    fal.config({ credentials: process.env.FAL_KEY });
-    const result = await fal.subscribe('fal-ai/flux/dev', {
-      input: {
-        prompt: engineeredPrompt,
-        image_size: 'landscape_16_9',
-        num_inference_steps: 35, // Aumentado para 35 para profundidade e realismo fotográfico
-        guidance_scale: 3.8,     // Força a IA a obedecer estritamente ao isolamento de peças e luz lateral
-        num_images: 1,
-        enable_safety_checker: true,
-      },
-      logs: false
-    });
-
-    const url = result?.data?.images?.[0]?.url;
-
-    if (!url) {
-      return NextResponse.json({ error: 'Falha ao gerar imagem.' }, { status: 502 });
+    if (base64Data) {
+      imageUrl = `data:image/png;base64,${base64Data}`;
     }
 
-    return NextResponse.json({ images: [url] });
+    if (!imageUrl) {
+      console.error('[AutoVision ERRO]: A OpenAI respondeu, mas nenhum dado de imagem foi encontrado.');
+      return NextResponse.json(
+        { error: 'Nenhuma imagem retornada pela OpenAI.' }, 
+        { status: 502 }
+      );
+    }
+
+    console.log('[AutoVision SUCESSO]: Imagem gerada e convertida com sucesso.');
+
+    // 5. Retorno bem-sucedido para o frontend
+    return NextResponse.json(
+      { images: [imageUrl] },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
 
   } catch (err) {
-    console.error('[generate]', err);
-    return NextResponse.json({ error: err?.message || 'Erro interno.' }, { status: 500 });
+    console.error('[AutoVision ERRO CRÍTICO]:', err?.message || err);
+    return NextResponse.json(
+      { error: err?.message || 'Erro interno de comunicação com a OpenAI.' }, 
+      { status: 500 }
+    );
   }
-        }
-      
+}
