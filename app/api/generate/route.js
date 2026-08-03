@@ -36,16 +36,17 @@ export async function POST(req) {
     console.log('[AutoVision] Processando solicitação de imagem Premium para:', text);
 
     // 3. Chamada oficial à API da OpenAI com o modelo atualizado e prompt otimizado
-    const response = await openai.images.generate({
+        const response = await openai.images.generate({
       model: "gpt-image-2", 
-      prompt: `Premium automotive studio photography of: ${text}. 
-      CRITICAL SETTINGS: Photorealistic, ultra-detailed masterpiece. 
-      LIGHTING & MATERIALS: High gloss paint with flawless clear coat, dramatic studio light reflections on the body, fenders, hood, and glass. 
-      ENVIRONMENT: Clean studio background with a highly contrasting color to make the car pop and stand out. 
+      prompt: `Ultra-realistic automotive photography of: ${text}. 
+      CRITICAL SETTINGS: Photorealistic, 8k resolution. 
+      LIGHTING & MATERIALS: EXTREME HIGH GLOSS paint, wet-look clear coat, mirror-like reflections on the car body and glass. Intense studio spotlights creating sharp, dramatic reflections on the curves of the fenders and hood. NO MATTE PAINT.
+      ENVIRONMENT: Clean studio background with a highly contrasting color to make the car pop. 
       RULES: 100% stock factory body shape. NO convertibles. NO tuning bodykits. Perfect, straight lines and decals without distortion.`,
       n: 1,
       size: "1024x1024"
     });
+
 
     // 4. Tratamento de compatibilidade (URL direta ou conversão de Base64)
     let imageUrl = response?.data?.[0]?.url;
