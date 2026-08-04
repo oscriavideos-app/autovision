@@ -31,8 +31,7 @@ export async function POST(req) {
       model: "gpt-image-2", 
       prompt: `Cinematic automotive studio photography of: ${text}. 
       CRITICAL SETTINGS: Ultra-photorealistic, extreme glossy wet-look paint finish, cinematic reflections. 
-      LIGHTING: Unreal Engine 5 render, Octane Render style, extreme ray-tracing reflections, glowing high gloss clear coat, dramatic professional overhead softboxes reflecting perfectly on the paint and glass to create an absolute premium masterpiece.
-
+      LIGHTING: Dramatic professional studio lighting, large overhead softboxes reflecting perfectly on the clear coat, hood, and glass to create a premium Dev look. 
       CAMERA & FRAMING: Wide angle shot, zoomed out. The entire car MUST be fully visible with generous negative space around it. Do not crop the vehicle. 
       ENVIRONMENT: Clean, neutral dark grey or matte black studio background (NO bright colors, NO red). 
       RULES: 100% stock factory body shape. NO convertibles. NO tuning bodykits. Perfect, straight lines and decals without distortion.`,
@@ -65,5 +64,4 @@ export async function POST(req) {
     );
   }
 }
-
-
+  
