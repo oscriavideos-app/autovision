@@ -13,42 +13,33 @@ const openai = new OpenAI({
 
 export async function POST(req) {
   try {
-    // 1. Validação de Segurança da Chave
     if (!process.env.OPENAI_API_KEY) {
-      console.error('[AutoVision ERRO]: Chave OPENAI_API_KEY ausente no ambiente.');
-      return NextResponse.json(
-        { error: 'Chave OPENAI_API_KEY não configurada no servidor.' }, 
-        { status: 500 }
-      );
+      console.error('[AutoVision ERRO]: Chave OPENAI_API_KEY ausente.');
+      return NextResponse.json({ error: 'Chave OPENAI_API_KEY não configurada.' }, { status: 500 });
     }
 
-    // 2. Leitura do corpo da requisição enviada pelo frontend
     const body = await req.json().catch(() => ({}));
     const text = (body.text || '').trim();
     
     if (!text) {
-      return NextResponse.json(
-        { error: 'Descrição do veículo vazia.' }, 
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Descrição do veículo vazia.' }, { status: 400 });
     }
 
-    console.log('[AutoVision] Processando solicitação de imagem Premium para:', text);
+    console.log('[AutoVision] Gerando imagem Cinematográfica Premium para:', text);
 
-    // 3. Chamada oficial à API da OpenAI com o modelo atualizado e prompt otimizado
-        const response = await openai.images.generate({
+    const response = await openai.images.generate({
       model: "gpt-image-2", 
-      prompt: `Ultra-realistic automotive photography of: ${text}. 
-      CRITICAL SETTINGS: Photorealistic, 8k resolution. 
-      LIGHTING & MATERIALS: EXTREME HIGH GLOSS paint, wet-look clear coat, mirror-like reflections on the car body and glass. Intense studio spotlights creating sharp, dramatic reflections on the curves of the fenders and hood. NO MATTE PAINT.
-      ENVIRONMENT: Clean studio background with a highly contrasting color to make the car pop. 
+      prompt: `Cinematic automotive studio photography of: ${text}. 
+      CRITICAL SETTINGS: Ultra-photorealistic, extreme glossy wet-look paint finish, cinematic reflections. 
+      LIGHTING: Unreal Engine 5 render, Octane Render style, extreme ray-tracing reflections, glowing high gloss clear coat, dramatic professional overhead softboxes reflecting perfectly on the paint and glass to create an absolute premium masterpiece.
+
+      CAMERA & FRAMING: Wide angle shot, zoomed out. The entire car MUST be fully visible with generous negative space around it. Do not crop the vehicle. 
+      ENVIRONMENT: Clean, neutral dark grey or matte black studio background (NO bright colors, NO red). 
       RULES: 100% stock factory body shape. NO convertibles. NO tuning bodykits. Perfect, straight lines and decals without distortion.`,
       n: 1,
       size: "1024x1024"
     });
 
-
-    // 4. Tratamento de compatibilidade (URL direta ou conversão de Base64)
     let imageUrl = response?.data?.[0]?.url;
     const base64Data = response?.data?.[0]?.b64_json;
 
@@ -57,26 +48,22 @@ export async function POST(req) {
     }
 
     if (!imageUrl) {
-      console.error('[AutoVision ERRO]: A OpenAI respondeu, mas nenhum dado de imagem foi encontrado.');
-      return NextResponse.json(
-        { error: 'Nenhuma imagem retornada pela OpenAI.' }, 
-        { status: 502 }
-      );
+      console.error('[AutoVision ERRO]: Nenhuma imagem retornada.');
+      return NextResponse.json({ error: 'Nenhuma imagem retornada.' }, { status: 502 });
     }
 
-    console.log('[AutoVision SUCESSO]: Imagem gerada e convertida com sucesso.');
-
-    // 5. Retorno bem-sucedido para o frontend
     return NextResponse.json(
       { images: [imageUrl] },
       { headers: { 'Cache-Control': 'no-store' } }
     );
 
   } catch (err) {
-    console.error('[AutoVision ERRO CRÍTICO]:', err?.message || err);
+    console.error('[AutoVision ERRO]:', err?.message || err);
     return NextResponse.json(
-      { error: err?.message || 'Erro interno de comunicação com a OpenAI.' }, 
+      { error: err?.message || 'Erro de comunicação com OpenAI.' }, 
       { status: 500 }
     );
   }
 }
+
+
