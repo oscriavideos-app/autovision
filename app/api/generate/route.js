@@ -14,27 +14,33 @@ const openai = new OpenAI({
 export async function POST(req) {
   try {
     if (!process.env.OPENAI_API_KEY) {
-      console.error('[AutoVision ERRO]: Chave OPENAI_API_KEY ausente.');
-      return NextResponse.json({ error: 'Chave OPENAI_API_KEY não configurada.' }, { status: 500 });
+      console.error('[AutoVision ERRO]: Chave OPENAI_API_KEY ausente no ambiente.');
+      return NextResponse.json(
+        { error: 'Chave OPENAI_API_KEY não configurada no servidor.' }, 
+        { status: 500 }
+      );
     }
 
     const body = await req.json().catch(() => ({}));
     const text = (body.text || '').trim();
     
     if (!text) {
-      return NextResponse.json({ error: 'Descrição do veículo vazia.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Descrição do veículo vazia.' }, 
+        { status: 400 }
+      );
     }
 
-    console.log('[AutoVision] Gerando imagem Cinematográfica Premium para:', text);
+    console.log('[AutoVision] Processando solicitação de imagem Premium para:', text);
 
+    // O nome da variável agora é 'response' para bater certinho com o resto do código
     const response = await openai.images.generate({
       model: "gpt-image-2", 
-      prompt: `Cinematic automotive studio photography of: ${text}. 
-      CRITICAL SETTINGS: Ultra-photorealistic, extreme glossy wet-look paint finish, cinematic reflections. 
-      LIGHTING: Dramatic professional studio lighting, large overhead softboxes reflecting perfectly on the clear coat, hood, and glass to create a premium Dev look. 
-      CAMERA & FRAMING: Wide angle shot, zoomed out. The entire car MUST be fully visible with generous negative space around it. Do not crop the vehicle. 
-      ENVIRONMENT: Clean, neutral dark grey or matte black studio background (NO bright colors, NO red). 
-      RULES: 100% stock factory body shape. NO convertibles. NO tuning bodykits. Perfect, straight lines and decals without distortion.`,
+      prompt: `Professional automotive studio photography of: ${text}, front and side profile (3/4 angle). 
+      CRITICAL CONTRAST RULE: Analyze the main color of the car. If the car body is dark (like black, dark grey, navy), use a clean, seamless, illuminated light-gray or soft white studio background. If the car body is light (like white, silver, light yellow), use a deep, sophisticated dark-charcoal or matte-black studio background. 
+      EDGES & QUALITY: Razor-sharp clean cutout edges around the entire vehicle silhouette, absolute ZERO white halos, ZERO artifacts or fuzzy borders. 
+      LIGHTING & MATERIALS: High gloss paint with flawless reflections, studio softbox lighting. 
+      RULES: 100% stock factory body shape. NO convertibles. NO tuning bodykits. Perfect straight lines.`,
       n: 1,
       size: "1024x1024"
     });
@@ -47,9 +53,14 @@ export async function POST(req) {
     }
 
     if (!imageUrl) {
-      console.error('[AutoVision ERRO]: Nenhuma imagem retornada.');
-      return NextResponse.json({ error: 'Nenhuma imagem retornada.' }, { status: 502 });
+      console.error('[AutoVision ERRO]: A OpenAI respondeu, mas nenhum dado de imagem foi encontrado.');
+      return NextResponse.json(
+        { error: 'Nenhuma imagem retornada pela OpenAI.' }, 
+        { status: 502 }
+      );
     }
+
+    console.log('[AutoVision SUCESSO]: Imagem gerada e convertida com sucesso.');
 
     return NextResponse.json(
       { images: [imageUrl] },
@@ -57,11 +68,10 @@ export async function POST(req) {
     );
 
   } catch (err) {
-    console.error('[AutoVision ERRO]:', err?.message || err);
+    console.error('[AutoVision ERRO CRÍTICO]:', err?.message || err);
     return NextResponse.json(
-      { error: err?.message || 'Erro de comunicação com OpenAI.' }, 
+      { error: err?.message || 'Erro interno de comunicação com a OpenAI.' }, 
       { status: 500 }
     );
   }
 }
-  
