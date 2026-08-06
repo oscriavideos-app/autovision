@@ -31,16 +31,16 @@ export async function POST(req) {
       );
     }
 
-    console.log('[AutoVision] Processando solicitação de imagem Premium para:', text);
+    console.log('[AutoVision] Processando solicitação fotorrealista para:', text);
 
-    // O nome da variável agora é 'response' para bater certinho com o resto do código
     const response = await openai.images.generate({
-      model: "gpt-image-2", 
-      prompt: `Professional automotive studio photography of: ${text}, front and side profile (3/4 angle). 
-      CRITICAL CONTRAST RULE: Analyze the main color of the car. If the car body is dark (like black, dark grey, navy), use a clean, seamless, illuminated light-gray or soft white studio background. If the car body is light (like white, silver, light yellow), use a deep, sophisticated dark-charcoal or matte-black studio background. 
-      EDGES & QUALITY: Razor-sharp clean cutout edges around the entire vehicle silhouette, absolute ZERO white halos, ZERO artifacts or fuzzy borders. 
-      LIGHTING & MATERIALS: High gloss paint with flawless reflections, studio softbox lighting. 
-      RULES: 100% stock factory body shape. NO convertibles. NO tuning bodykits. Perfect straight lines.`,
+      model: "gpt-image-2", // Mantendo o modelo que funcionou para você
+      prompt: `Hyper-realistic automotive photography of: ${text}. 
+      CAMERA & STYLE: Shot on a DSLR camera, 35mm lens, f/8 aperture for sharp focus, photorealistic, natural lighting mixed with soft studio strobes. NOT a 3D render, NOT an illustration, absolute photorealism.
+      ANGLE: Front and side profile (3/4 angle). 
+      PAINT & FINISH: Highly polished real car paint, subtle natural reflections on the bodywork, realistic metallic or gloss finish.
+      ENVIRONMENT: Clean, neutral, seamless light-gray or soft white studio background to highlight the car.
+      EDGES: Sharp, clean photographic edges.`,
       n: 1,
       size: "1024x1024"
     });
@@ -60,7 +60,7 @@ export async function POST(req) {
       );
     }
 
-    console.log('[AutoVision SUCESSO]: Imagem gerada e convertida com sucesso.');
+    console.log('[AutoVision SUCESSO]: Imagem fotorrealista gerada com sucesso.');
 
     return NextResponse.json(
       { images: [imageUrl] },
