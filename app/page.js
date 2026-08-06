@@ -1,30 +1,17 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, ArrowUp, X, Share2, RotateCcw, Video, Download } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Mic, MicOff, Send, X, Share2, RotateCcw, Video, Gauge } from 'lucide-react';
 
 export default function Home() {
   const [status, setStatus] = useState('idle'); 
   const [transcript, setTranscript] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  
   const [videoUrl, setVideoUrl] = useState('');
   const [videoStatusTexto, setVideoStatusTexto] = useState('');
   
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-
-  // Recarrega o pedido salvo do localStorage se o usuário fechou a página durante a renderização
-  useEffect(() => {
-    const pedidoSalvo = localStorage.getItem('lumaRequestId');
-    const imagemSalva = localStorage.getItem('lumaImageUrl');
-    
-    if (pedidoSalvo && imagemSalva) {
-      setImageUrl(imagemSalva);
-      setStatus('done');
-      monitorarVideoNaNuvem(pedidoSalvo);
-    }
-  }, []);
 
   async function startRecording() {
     try {
@@ -53,9 +40,9 @@ export default function Home() {
     fd.append('audio', blob, 'recording.webm');
     
     try {
-      const res = await fetch('/api/transcribe', { method: 'POST', body: fd, cache: 'no-store' });
+      const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
       const data = await res.json();
-      setTranscript(data.text || "Erro ao limpar o texto. Tente novamente.");
+      setTranscript(data.text || "Erro ao capturar o texto. Tente novamente.");
       setStatus('review');
     } catch (e) {
       alert("Erro na transcrição.");
@@ -71,7 +58,6 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: transcript }),
-        cache: 'no-store'
       });
       
       const data = await res.json();
@@ -88,84 +74,50 @@ export default function Home() {
     }
   }
 
-  // --- GERAÇÃO E MONITORAMENTO DO VÍDEO 360 ---
-  async function iniciarGeracaoVideo360() {
-    setVideoStatusTexto("Iniciando motor 3D...");
-    
+  async function aguardarVideo(requestId, tentativas = 0) {
+    if (tentativas > 20) {
+      throw new Error("Tempo limite excedido.");
+    }
+    const res = await fetch(`/api/checar-status?requestId=${requestId}`);
+    const data = await res.json();
+
+    if (data.status === 'COMPLETED' && data.videoUrl) return data.videoUrl;
+    if (data.status === 'FAILED' || data.status === 'ERROR') throw new Error('Falha no processamento do vídeo.');
+
+    await new Promise((r) => setTimeout(r, 5000)); 
+    return aguardarVideo(requestId, tentativas + 1);
+  }
+
+  async function iniciarGeracaoVideo() {
     try {
-      const resposta = await fetch('/api/gerar-carro', {
+      setVideoStatusTexto("Renderizando vídeo 90 graus...");
+
+      const response = await fetch('/api/gerar-carro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: "Smooth 360-degree camera orbit pan around the car, photorealistic, keep details exactly as the image",
-          imageUrl: imageUrl 
-        }),
-        cache: 'no-store'
-      });
-      
-      const dados = await resposta.json();
-      const requestId = dados.requestId;
+        body: JSON.stringify({
+          prompt: transcript,
+          imageUrl: imageUrl,
+          tipo: 'externo'
+        })
+      }).then(res => res.json());
 
-      localStorage.setItem('lumaRequestId', requestId);
-      localStorage.setItem('lumaImageUrl', imageUrl);
+      if (!response.requestId) throw new Error("Falha ao iniciar geração do vídeo.");
 
-      monitorarVideoNaNuvem(requestId);
+      const url = await aguardarVideo(response.requestId);
+      setVideoUrl(url);
+      setVideoStatusTexto("");
       
     } catch (error) {
-      setVideoStatusTexto("Erro de conexão com o estúdio 3D.");
+      console.error("Erro ao iniciar geração:", error);
+      alert(error.message);
+      setVideoStatusTexto("");
     }
   }
 
-  function monitorarVideoNaNuvem(requestId) {
-    setVideoStatusTexto("Renderizando vídeo 360º. Você pode fechar a aba se desejar.");
-
-    const intervalo = setInterval(async () => {
-      try {
-        const checagem = await fetch(`/api/checar-status?requestId=${requestId}`, { cache: 'no-store' });
-        const resultadoStatus = await checagem.json();
-
-        if (resultadoStatus.status === "COMPLETED") {
-          clearInterval(intervalo);
-          setVideoStatusTexto(""); 
-          setVideoUrl(resultadoStatus.videoUrl); 
-          localStorage.removeItem('lumaRequestId');
-          localStorage.removeItem('lumaImageUrl');
-        } else if (resultadoStatus.status === "FAILED") {
-          clearInterval(intervalo);
-          setVideoStatusTexto("Erro no servidor ao gerar o vídeo.");
-          localStorage.removeItem('lumaRequestId');
-        }
-      } catch (err) {
-        console.error("Aguardando reconexão...", err);
-      }
-    }, 5000);
-  }
-
-  // --- FUNÇÃO DE DOWNLOAD DIRETO PARA O CELULAR ---
-  async function baixarMidia(url, nomeArquivo) {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = nomeArquivo;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-      window.open(url, '_blank');
-    }
-  }
-
-  // --- FUNÇÃO PARA COMPARTILHAR O VÍDEO / FOTO NO WHATSAPP ---
-  function compartilharWhatsApp() {
-    const midiaParaEnviar = videoUrl || imageUrl;
-    const tipo = videoUrl ? 'vídeo 360º' : 'projeto 3D';
-    const mensagem = `Confira meu ${tipo} do Celta customizado no Auto Vision:\n${midiaParaEnviar}`;
-    
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
+  function shareToWhatsApp() {
+    const text = `Confira meu projeto no AutoVision: https://tuning-chi.vercel.app/`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   }
 
   function resetProject() {
@@ -174,121 +126,156 @@ export default function Home() {
     setTranscript('');
     setVideoUrl('');
     setVideoStatusTexto('');
-    localStorage.removeItem('lumaRequestId');
-    localStorage.removeItem('lumaImageUrl');
   }
 
   return (
-    <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 font-sans overflow-hidden select-none">
-      
-      {status !== 'done' && (
-        <div className="mb-10 w-full max-w-sm h-40 border border-cyan-500/30 rounded-2xl flex items-center justify-center relative overflow-hidden bg-cyan-950/10">
-          <div className="absolute w-full h-px bg-cyan-500/50 animate-[scan_2s_linear_infinite]"></div>
-          <span className="text-cyan-500 font-bold tracking-widest uppercase text-xl">Auto Vision</span>
-        </div>
-      )}
+    <div className="min-h-screen bg-[#0A0A0A] text-white font-sans p-4 md:p-8 flex flex-col">
+      {/* Header AutoVision */}
+      <header className="flex items-center gap-2 mb-8">
+        <Gauge className="w-6 h-6 text-[#0066FF]" />
+        <h1 className="text-xl font-bold tracking-wide">
+          <span className="text-white">Auto</span>
+          <span className="text-[#0066FF]">Vision</span>
+        </h1>
+      </header>
 
-      {status === 'idle' && (
-        <button onClick={startRecording} className="w-full max-w-sm h-24 rounded-3xl bg-black border-2 border-cyan-500 text-cyan-400 font-bold text-2xl flex items-center justify-center gap-4 animate-neon-pulse shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-950/30">
-          <Mic className="w-8 h-8" /> Falar Modificação
-        </button>
-      )}
-
-      {status === 'recording' && (
-        <button onClick={stopRecording} className="w-full max-w-sm h-24 rounded-3xl bg-red-900/20 border-2 border-red-500 text-red-400 font-bold text-2xl flex items-center justify-center gap-4 animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)]">
-          <MicOff className="w-8 h-8" /> Parar Gravação
-        </button>
-      )}
-
-      {status === 'transcribing' && (
-        <div className="text-cyan-400 text-xl font-bold animate-pulse text-center">Limpando áudio...</div>
-      )}
-
-      {status === 'review' && (
-        <div className="w-full max-w-sm flex flex-col gap-4">
-          <p className="text-lg text-center text-zinc-100 font-medium p-6 bg-zinc-900 rounded-2xl border border-white/5">
-            "{transcript}"
-          </p>
-          <div className="flex gap-4">
-            <button onClick={sendModification} className="flex-1 h-20 rounded-3xl bg-pink-600/20 border border-pink-500 text-pink-400 font-bold text-lg flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(236,72,153,0.5)] animate-pulse">
-              <ArrowUp className="w-6 h-6"/> Enviar
-            </button>
-            <button onClick={() => setStatus('idle')} className="flex-1 h-20 rounded-3xl bg-orange-600/20 border border-orange-500 text-orange-400 font-bold text-lg flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.3)]">
-              <X className="w-6 h-6"/> Cancelar
-            </button>
+      <main className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
+        
+        {/* Título de Instrução (aparece apenas no início) */}
+        {status === 'idle' && (
+          <div className="text-center mb-8">
+            <p className="text-sm text-[#0066FF] mb-2 font-medium tracking-widest uppercase">Nova Simulação</p>
+            <h2 className="text-3xl font-bold tracking-tight">O que vamos modificar hoje?</h2>
           </div>
-        </div>
-      )}
+        )}
 
-      {status === 'generating' && (
-        <div className="text-cyan-400 text-xl font-bold animate-pulse text-center">Processando Estúdio...</div>
-      )}
-
-      {status === 'done' && imageUrl && (
-        <div className="w-full flex flex-col items-center gap-6">
+        {/* Área Central (Carro Wireframe / Imagem / Vídeo) */}
+        <div className="w-full aspect-video bg-black border border-[#222222] rounded-2xl flex items-center justify-center relative overflow-hidden mb-8 shadow-[0_0_50px_rgba(0,102,255,0.1)]">
           
-          {/* Exibição da Imagem (se não houver vídeo) */}
-          {!videoUrl && (
-            <div className="w-full max-w-2xl relative bg-white rounded-xl shadow-[0_0_30px_rgba(0,255,255,0.15)] p-2">
-              <img 
-                src={imageUrl} 
-                className="w-full h-auto object-cover rounded-lg animate-fade-in" 
-                alt="Projeto Finalizado" 
-              />
+          {/* Carro Wireframe e Scanner */}
+          {status !== 'done' && (
+            <div className="absolute inset-0 flex items-center justify-center">
+               <img 
+                 src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-hY7K5q4q3X92oP3C8v3kU2L4hQ8C8v.png" 
+                 alt="Carro Wireframe" 
+                 className="w-full h-full object-contain opacity-80"
+               />
+               <div className="absolute w-full h-px bg-[#0066FF] shadow-[0_0_20px_#0066FF] animate-[scan_3s_ease-in-out_infinite]"></div>
             </div>
           )}
 
-          {/* Exibição do Vídeo 360 */}
-          {videoUrl && (
-             <div className="w-full max-w-2xl relative bg-white rounded-xl shadow-[0_0_40px_rgba(168,85,247,0.3)] p-2">
-                <video 
-                  src={videoUrl} 
-                  autoPlay 
-                  loop 
-                  controls 
-                  className="w-full h-auto rounded-lg animate-fade-in"
-                />
-             </div>
+          {/* Feedback de Gravação e Transcrição */}
+          {status === 'recording' && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+               <div className="w-20 h-20 rounded-full bg-pink-500/20 flex items-center justify-center animate-pulse mb-4 shadow-[0_0_30px_rgba(236,72,153,0.5)]">
+                 <Mic className="w-10 h-10 text-pink-500" />
+               </div>
+               <p className="text-pink-400 font-medium">Analisando comando vocal...</p>
+            </div>
+          )}
+          {status === 'transcribing' && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+               <div className="w-10 h-10 border-4 border-[#0066FF] border-t-transparent rounded-full animate-spin mb-4"></div>
+               <p className="text-[#0066FF] font-medium">Processando áudio...</p>
+            </div>
+          )}
+           {status === 'generating' && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+               <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+               <p className="text-purple-400 font-medium">Renderizando projeto visual...</p>
+            </div>
           )}
 
-          {videoStatusTexto && (
-             <div className="text-purple-400 text-sm font-bold animate-pulse text-center px-4">
-               {videoStatusTexto}
-             </div>
+          {/* Exibição do Resultado */}
+          {status === 'done' && (
+            <div className="w-full h-full relative">
+               {!videoUrl ? (
+                 <img src={imageUrl} alt="Projeto Gerado" className="w-full h-full object-cover" />
+               ) : (
+                 <video src={videoUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+               )}
+               
+               {/* Overlay de Status do Vídeo */}
+               {videoStatusTexto && (
+                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur text-white px-4 py-2 rounded-full text-sm font-medium border border-purple-500/50 flex items-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+                   <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                   {videoStatusTexto}
+                 </div>
+               )}
+            </div>
           )}
-
-          {!videoUrl && !videoStatusTexto && (
-             <button onClick={iniciarGeracaoVideo360} className="w-full max-w-sm h-16 rounded-2xl bg-purple-600/20 border border-purple-500 text-purple-400 font-bold text-lg flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:bg-purple-600/30">
-               <Video className="w-6 h-6"/> Gerar Visão 360º (Efeito Uau)
-             </button>
-          )}
-
-          {/* Botão de Download do Vídeo ou da Imagem */}
-          <button 
-            onClick={() => baixarMidia(videoUrl || imageUrl, videoUrl ? 'celta-360.mp4' : 'celta-customizado.png')} 
-            className="w-full max-w-sm h-16 rounded-2xl bg-blue-600/20 border border-blue-500 text-blue-400 font-bold text-lg flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:bg-blue-600/30"
-          >
-            <Download className="w-5 h-5"/> Baixar {videoUrl ? 'Vídeo 360º' : 'Foto'}
-          </button>
-
-          {/* Botão WhatsApp */}
-          <button onClick={compartilharWhatsApp} className="w-full max-w-sm h-16 rounded-2xl bg-[#25D366]/20 border border-[#25D366] text-[#25D366] font-bold text-lg flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(37,211,102,0.4)] hover:bg-[#25D366]/30">
-            <Share2 className="w-5 h-5"/> Compartilhar no WhatsApp
-          </button>
-          
-          <button onClick={resetProject} className="flex items-center gap-2 text-gray-400 hover:text-white underline mt-2">
-            <RotateCcw className="w-4 h-4"/> Criar outro projeto
-          </button>
         </div>
-      )}
+
+        {/* Barra de Controles Inferior */}
+        <div className="w-full max-w-2xl bg-[#0F0F0F] border border-[#222222] p-2 rounded-2xl flex flex-col items-center gap-3 shadow-2xl">
+          
+          {/* Caixa de Texto / Revisão */}
+          <div className="w-full bg-[#161616] border border-[#2A2A2A] rounded-xl p-4 min-h-[60px] flex items-center justify-center text-center">
+            {status === 'review' ? (
+              <p className="text-gray-200 text-sm italic">"{transcript}"</p>
+            ) : status === 'done' ? (
+               <p className="text-gray-400 text-sm line-clamp-2">{transcript}</p>
+            ) : (
+              <p className="text-gray-500 text-sm flex items-center justify-center gap-2">
+                <span className="text-[#0066FF]">✧</span> Ex: Envelopar Montana 2024 em cinza fosco
+              </p>
+            )}
+          </div>
+
+          {/* Botões de Ação */}
+          <div className="w-full flex gap-3">
+            {status === 'idle' && (
+              <button onClick={startRecording} className="w-full bg-[#0066FF]/20 border border-[#0066FF] hover:bg-[#0066FF]/30 text-[#0066FF] px-6 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all animate-[pulse_2s_infinite] shadow-[0_0_20px_rgba(0,102,255,0.2)]">
+                <Mic className="w-6 h-6" /> Falar Modificação
+              </button>
+            )}
+
+            {status === 'recording' && (
+              <button onClick={stopRecording} className="w-full bg-pink-600/20 border border-pink-500 hover:bg-pink-600/30 text-pink-500 px-6 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all animate-[pulse_1.5s_infinite] shadow-[0_0_20px_rgba(236,72,153,0.3)]">
+                <MicOff className="w-6 h-6" /> Parar
+              </button>
+            )}
+
+            {status === 'review' && (
+              <>
+                <button onClick={() => setStatus('idle')} className="flex-1 bg-red-600/20 border border-red-500 hover:bg-red-600/30 text-red-500 px-4 py-4 rounded-xl font-bold flex items-center justify-center transition-all animate-[pulse_2s_infinite]">
+                  <X className="w-6 h-6" /> Cancelar
+                </button>
+                <button onClick={sendModification} className="flex-[2] bg-green-600/20 border border-green-500 hover:bg-green-600/30 text-green-500 px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all animate-[pulse_2s_infinite]">
+                  Enviar <Send className="w-5 h-5" />
+                </button>
+              </>
+            )}
+
+            {status === 'done' && (
+              <>
+                 {!videoUrl && !videoStatusTexto && (
+                   <button onClick={iniciarGeracaoVideo} className="flex-[2] bg-purple-600/20 border border-purple-500 hover:bg-purple-600/30 text-purple-400 px-4 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all animate-[pulse_2s_infinite] shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                     <Video className="w-5 h-5" /> Gerar Vídeo 90º
+                   </button>
+                 )}
+                 <button onClick={shareToWhatsApp} className="flex-1 bg-[#25D366]/20 border border-[#25D366] hover:bg-[#25D366]/30 text-[#25D366] px-4 py-4 rounded-xl font-bold flex items-center justify-center transition-all">
+                   <Share2 className="w-5 h-5" />
+                 </button>
+                 <button onClick={resetProject} className="flex-1 bg-[#222222] hover:bg-[#333333] border border-[#444] text-gray-300 px-4 py-4 rounded-xl font-bold flex items-center justify-center transition-all">
+                   <RotateCcw className="w-5 h-5" />
+                 </button>
+              </>
+            )}
+          </div>
+        </div>
+
+      </main>
 
       <style jsx global>{`
-        @keyframes neon-pulse { 0%, 100% { box-shadow: 0 0 20px rgba(6,182,212,0.5); } 50% { box-shadow: 0 0 40px rgba(6,182,212,0.8); } }
-        .animate-neon-pulse { animation: neon-pulse 1.5s infinite; }
-        @keyframes scan { 0% { top: -10%; } 100% { top: 110%; } }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes scan { 
+          0% { top: 0%; opacity: 0; } 
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; } 
+        }
       `}</style>
-    </main>
+    </div>
   );
 }
+  
